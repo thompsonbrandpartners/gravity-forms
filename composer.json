@@ -1,9 +1,0 @@
-{
-    "name": "thompsonbrandpartners/gravityforms",
-    "type": "wordpress-plugin",
-    "autoload": {
-        "classmap": [
-            "."
-        ]
-    }
-}
