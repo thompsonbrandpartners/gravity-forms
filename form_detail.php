@@ -948,7 +948,7 @@ class GFFormDetail {
 										<?php esc_html_e( 'Theme', 'gravityforms' ); ?>
 										<?php gform_tooltip( 'form_field_recaptcha_theme' ); ?>
 									</label>
-									<select id="field_captcha_theme" onchange="SetCaptchaTheme(this.value, '<?php echo GFCommon::get_base_url() . $recaptcha_image_base ?>' + this.value + '.jpg')">
+									<select id="field_captcha_theme" onchange="SetCaptchaTheme(this.value, '<?php echo GFCommon::get_base_url() . $recaptcha_image_base ?>' + this.value + '.svg')">
 										<option value="light"><?php esc_html_e( 'Light', 'gravityforms' ); ?></option>
 										<option value="dark"><?php esc_html_e( 'Dark', 'gravityforms' ); ?></option>
 									</select>

@@ -3,7 +3,7 @@
 Plugin Name: Gravity Forms
 Plugin URI: https://gravityforms.com
 Description: Easily create web forms and manage form entries within the WordPress admin.
-Version: 2.9.1
+Version: 2.9.1.3
 Requires at least: 4.0
 Requires PHP: 5.6
 Author: Gravity Forms
@@ -247,7 +247,7 @@ class GFForms {
 	 *
 	 * @var string $version The version number.
 	 */
-	public static $version = '2.9.1';
+	public static $version = '2.9.1.3';
 
 	/**
 	 * Handles background upgrade tasks.
@@ -687,10 +687,11 @@ class GFForms {
 		}
 
 		if ( $gf_page == 'form_list' ) {
+			add_filter( 'screen_settings', array( 'GFForms', 'show_screen_options' ), 10, 2 );
 			// For WP 5.4.1 and older.
 			add_filter( 'set-screen-option', array( 'GFForms', 'set_screen_options' ), 10, 3 );
 			// For WP 5.4.2+.
-			add_filter( 'set_screen_option_gform_forms_per_page', array( 'GFForms', 'set_screen_options' ), 10, 3 );
+			add_filter( 'set_screen_option_gform_forms_screen_options', array( 'GFForms', 'set_screen_options' ), 10, 3 );
 		}
 	}
 
@@ -1966,7 +1967,7 @@ class GFForms {
 
 		$page = GFForms::get_page();
 
-		if ( $page === '' ) {
+		if ( $page === false ) {
 			return $admin_title;
 		}
 
@@ -6489,8 +6490,11 @@ class GFForms {
 			$return['default_filter'] = sanitize_key( rgpost( 'gform_default_filter' ) );
 			$return['per_page']       = sanitize_key( rgpost( 'gform_per_page' ) );
 			$return['display_mode']   = sanitize_key( rgpost( 'gform_entries_display_mode' ) );
-		} elseif ( $option = 'gform_forms_per_page' ) {
-			$return = $value;
+		} elseif ( $option == 'gform_forms_screen_options' ) {
+			$return = array();
+			$return['order_by']   = sanitize_key( rgpost( 'order_by' ) );
+			$return['sort_order'] = strtoupper( sanitize_key( rgpost( 'sort_order' ) ) );
+			$return['per_page']   = sanitize_key( rgpost( 'gform_per_page' ) );
 		}
 
 		return $return;
@@ -6519,6 +6523,11 @@ class GFForms {
 			$return = GFEntryList::get_screen_options_markup( $status, $args );
 		}
 
+		if ( self::get_page() == 'form_list' ) {
+			require_once( GFCommon::get_base_path() . '/form_list.php' );
+			$return = GFFormList::get_screen_options_markup( $status, $args );
+		}
+
 		return $return;
 	}
 
@@ -6531,22 +6540,9 @@ class GFForms {
 	 * @used   GFEntryDetail::add_meta_boxes()
 	 */
 	public static function load_screen_options() {
-		$screen = get_current_screen();
-
-		if ( ! is_object( $screen ) ) {
-			return;
-		}
-
 		$page = GFForms::get_page();
 
-		if ( $page == 'form_list' ) {
-			$args = array(
-				'label'   => __( 'Forms per page', 'gravityforms' ),
-				'default' => 20,
-				'option'  => 'gform_forms_per_page',
-			);
-			add_screen_option( 'per_page', $args );
-		} elseif ( in_array( $page, array( 'entry_detail', 'entry_detail_edit' ) ) ) {
+		if ( in_array( $page, array( 'entry_detail', 'entry_detail_edit' ) ) ) {
 
 			require_once( GFCommon::get_base_path() . '/entry_detail.php' );
 
@@ -6876,34 +6872,6 @@ class GFForms {
 	}
 
 	/**
-	 * Target for the WordPress 'query' filter. Triggers an PHP Notice if an outdated add-on or custom code attempts to
-	 * access tables that are not valid for this version of Gravity Forms.
-	 *
-	 * @since 2.3
-	 * @deprecated 2.8.13
-	 * @remove-in 3.0
-	 * @param $query
-	 *
-	 * @return string
-	 */
-	public static function filter_query( $query ) {
-		_deprecated_function( __METHOD__, '2.8.13' );
-		global $wpdb;
-
-		if ( preg_match( "/$wpdb->prefix(rg_lead_detail|rg_lead_meta|rg_lead_notes|rg_lead|rg_form_meta|rg_form_view|rg_form|rg_incomplete_submissions)/", $query, $matches ) ) {
-			if ( version_compare( GFFormsModel::get_database_version(), '2.3-dev-1', '>' ) ) {
-				$table_name = $matches[0];
-				$url = 'https://docs.gravityforms.com/database-storage-structure-reference/#changes-from-gravity-forms-2-2';
-				/* translators: 1: The table name 2: the URL with further details */
-				$message = esc_html__( 'An outdated add-on or custom code is attempting to access the %1$s table which is not valid in this version of Gravity Forms. Update your add-ons and custom code to prevent loss of form data. Further details: %2$s', 'gravityforms' );
-				$notice = sprintf( $message, $table_name, $url );
-				trigger_error( $notice );
-			}
-		}
-		return $query;
-	}
-
-	/**
 	 * Target for the admin_notices action.
 	 *
 	 * @since 2.3
@@ -6990,14 +6958,14 @@ class GFForms {
 	 * @return void
 	 */
 	public static function init_buffer() {
+		if( php_sapi_name() === 'cli' ) {
+			return;
+		}
+
 		require_once GFCommon::get_base_path() . '/includes/libraries/class-dom-parser.php';
 		$parser = new Dom_Parser( '' );
 
 		if ( ! $parser->is_parseable_request( false ) ) {
-			return;
-		}
-
-		if ( strpos( php_sapi_name(), 'cli' ) !== false ) {
 			return;
 		}
 

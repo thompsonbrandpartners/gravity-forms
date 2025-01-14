@@ -162,6 +162,15 @@ abstract class GFPaymentAddOn extends GFFeedAddOn {
 	 */
 	protected $_requires_smallest_unit = false;
 
+	/**
+	 * Out of the box, payment add-ons do not support feed reprocessing.
+	 *
+	 * @since 2.9.2
+	 *
+	 * @var bool
+	 */
+	protected $_supports_feed_reprocessing = false;
+
 	//--------- Initialization ----------
 	/**
 	 * Runs before the payment add-on is initialized.

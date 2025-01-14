@@ -749,7 +749,7 @@ class GFFormDisplay {
 
 		if ( $mode == 'render' ) {
 			$is_valid     = rgars( self::$submission, "{$form['id']}/is_valid" );
-			$is_last_page = $is_valid && $target_page == self::get_max_page_number( $form );
+			$is_last_page = ( $is_valid && $target_page == self::get_max_page_number( $form ) ) || (string) $target_page === '0';
 		} else {
 			$is_last_page = (string) $target_page === '0';
 		}

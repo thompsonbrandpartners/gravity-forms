@@ -2655,7 +2655,7 @@ class GF_Field extends stdClass implements ArrayAccess {
 	 */
 	public function get_allowable_tags( $form_id = null ) {
 		if ( empty( $form_id ) ) {
-			$form_id = $this->form_id;
+			$form_id = $this->formId;
 		}
 		$form_id    = absint( $form_id );
 		$allow_html = $this->allow_html();
