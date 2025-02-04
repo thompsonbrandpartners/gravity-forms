@@ -3899,18 +3899,12 @@ class GFFormsModel {
 
 			case 'greater_than':
 			case '>' :
-				$val1 = floatval( $val1 );
-				$val2 = floatval( $val2 );
-
-				return $val1 > $val2;
+				return $val1 > $val2; // Do not cast these to float because this will compare numbers as well as dates.
 				break;
 
 			case 'less_than':
 			case '<' :
-				$val1 = floatval( $val1 );
-				$val2 = floatval( $val2 );
-
-				return $val1 < $val2;
+				return $val1 < $val2; // Do not cast these to float because this will compare numbers as well as dates.
 				break;
 
 			case 'contains' :
@@ -8253,9 +8247,9 @@ class GFFormsModel {
 			}
 			$source_field   = RGFormsModel::get_field( $form, $rule['fieldId'] );
 			$source_value   = empty( $entry ) ? self::get_field_value( $source_field, $field_values ) : self::get_lead_field_value( $entry, $source_field );
-			$number_format  = ! empty( rgobj( $source_field, 'numberFormat' ) ) ? $source_field->numberFormat : 'currency';
 
-
+			// Number format will either be currency or decimal_dot. Numbers formatted with decimal_comma will have their values transformed and stored as decimal_dot.
+			$number_format  = rgobj( $source_field, 'numberFormat' ) == 'currency' ? 'currency' : 'decimal_dot';
 			$source_value = GFCommon::maybe_format_numeric( $source_value, $rule['operator'], $number_format );
 
 			/**
