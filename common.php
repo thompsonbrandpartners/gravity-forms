@@ -5254,7 +5254,7 @@ Content-Type: text/html;
 			foreach ( $matches as $match ) {
 
 				list( $text, $input_id ) = $match;
-				$value   = self::get_calculation_value( $input_id, $form, $lead, $number_format );
+				$value   = self::get_calculation_value( $input_id, $form, $lead, $number_format, rgar( $match, 4 )  );
 				$value   = apply_filters( 'gform_merge_tag_value_pre_calculation', $value, $input_id, rgar( $match, 4 ), $field, $form, $lead );
 				$formula = str_replace( $text, $value, $formula );
 
@@ -5297,10 +5297,25 @@ Content-Type: text/html;
 
 		return $number;
 	}
+	
+	/**
+	 * Gets the calculation value for a specific field.
+	 *
+	 * @since unknown
+	 *
+	 * @since 2.9.3 Added the $modifier parameter.
+	 *
+	 * @param int    $field_id      The ID of the field.
+	 * @param array  $form          The form object.
+	 * @param array  $lead          The lead object.
+	 * @param string $number_format The number format.
+	 * @param string $modifier      The modifier.
+	 *
+	 * @return float|int The calculation value.
+	 */
+	public static function get_calculation_value( $field_id, $form, $lead, $number_format = '', $modifier = '' ) {
 
-	public static function get_calculation_value( $field_id, $form, $lead, $number_format = '' ) {
-
-		$filters = array( 'price', 'value', '' );
+		$filters = $modifier ? array( $modifier ) : array( 'price', 'value', '' );
 		$value   = false;
 
 		$field            = RGFormsModel::get_field( $form, $field_id );
