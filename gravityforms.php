@@ -3,7 +3,7 @@
 Plugin Name: Gravity Forms
 Plugin URI: https://gravityforms.com
 Description: Easily create web forms and manage form entries within the WordPress admin.
-Version: 2.9.4.2
+Version: 2.9.5.2
 Requires at least: 6.5
 Requires PHP: 7.4
 Author: Gravity Forms
@@ -257,7 +257,7 @@ class GFForms {
 	 *
 	 * @var string $version The version number.
 	 */
-	public static $version = '2.9.4.2';
+	public static $version = '2.9.5.2';
 
 	/**
 	 * Handles background upgrade tasks.
@@ -882,8 +882,8 @@ class GFForms {
 	public static function maybe_process_form() {
 		require_once( GFCommon::get_base_path() . '/form_display.php' );
 
-		// If this is an AJAX or CUSTOM form submission, we don't want to process the form here.
-		if ( in_array( GFFormDisplay::get_submission_method(), array( GFFormDisplay::SUBMISSION_METHOD_AJAX, GFFormDisplay::SUBMISSION_METHOD_CUSTOM ) ) ) {
+		// If this is an AJAX form submission, we don't want to process the form here.
+		if ( GFFormDisplay::get_submission_method() === GFFormDisplay::SUBMISSION_METHOD_AJAX ) {
 			return;
 		}
 
@@ -1154,7 +1154,7 @@ class GFForms {
 			'jquery-color',
 			'utils',
 			'svg-painter',
-			'mce-view' // added in 2.5.13 to support Media Uploads in no-conflict mode
+			'mce-view', // added in 2.5.13 to support Media Uploads in no-conflict mode
 		);
 
 		$gf_required_scripts = array(
@@ -1198,6 +1198,8 @@ class GFForms {
 				'gform_selectwoo',
 			),
 			'gf_edit_forms_settings' => array(
+				'wp-element',
+				'wp-i18n',
 				'editor',
 				'word-count',
 				'quicktags',
@@ -1262,7 +1264,8 @@ class GFForms {
 			'gf_system_status'           => array(
 				'gform_system_report_clipboard',
 				'thickbox',
-				'gform_placeholder'),
+				'gform_placeholder',
+			),
 		);
 
 		$load_scripts_globally = apply_filters( 'gform_load_admin_scripts_globally', true );
@@ -2126,6 +2129,11 @@ class GFForms {
 			case 'import_form':
 				/* Translators: Import form page title. 1: Admin title. */
 				$admin_title = sprintf( __( 'Import Forms &lsaquo; %1$s', 'gravityforms' ), esc_html( $admin_title ) );
+				break;
+
+			case 'imported_forms_list':
+				/* Translators: Imported forms page title. 1: Admin title. */
+				$admin_title = sprintf( __( 'Imported Forms &lsaquo; %1$s', 'gravityforms' ), esc_html( $admin_title ) );
 				break;
 
 			case 'export_entry':
@@ -3199,7 +3207,7 @@ class GFForms {
 			return $form_string;
 		}
 
-		return '<script type="text/javascript">' . $scripts . '</script>' . $form_string;
+		return GFCommon::get_inline_script_tag( $scripts, false ) . $form_string;
 	}
 
 	/**
@@ -3549,6 +3557,10 @@ class GFForms {
 
 		if ( $page == 'gf_edit_forms' && ! rgget( 'id' ) ) {
 			return 'form_list';
+		}
+
+		if ( $page == 'gf_edit_forms' && count( explode(',', rgget( 'id' ) ) ) > 1 ) {
+			return 'imported_forms_list';
 		}
 
 		if ( $page == 'gf_edit_forms' && ! rgget( 'view' ) ) {
@@ -5040,11 +5052,12 @@ class GFForms {
 	 * Displays the form switcher dropdown.
 	 *
 	 * @param string $title The form title
+	 * @param string $form_id The form ID
 	 *
 	 * @since  Unknown
 	 * @access public
 	 */
-	public static function form_switcher( $title = '' ) {
+	public static function form_switcher( $title = '', $form_id = '' ) {
 
 		if ( ! class_exists( 'GFFormSettings' ) ) {
 			require_once( GFCommon::get_base_path() . '/form_settings.php' );
@@ -5093,16 +5106,20 @@ class GFForms {
 			<span
 				class="gform-visually-hidden"
 				id="gform-form-switcher-label"
-			><?php esc_attr_e( 'Select a different form', 'gravityforms' ) ?></span>
+			><?php esc_attr_e( 'Select a different form', 'gravityforms' ); ?></span>
 			<button
+			    type="button"
 				aria-expanded="false"
 				aria-haspopup="listbox"
 				aria-labelledby="gform-form-switcher-label gform-form-switcher-control"
 				class="gform-dropdown__control"
 				data-js="gform-dropdown-control"
 				id="gform-form-switcher-control"
+				data-value="<?php esc_attr_e( $form_id ); ?>"
 			>
-				<span class="gform-dropdown__control-text" data-js="gform-dropdown-control-text"><?php echo esc_html( $title ); ?></span>
+				<span class="gform-dropdown__control-text" data-js="gform-dropdown-control-text">
+				    <?php echo esc_html( $title ); ?>
+				</span>
 				<i class="gform-spinner gform-dropdown__spinner"></i>
 				<i class="gform-icon gform-icon--chevron gform-dropdown__chevron"></i>
 			</button>
@@ -5110,26 +5127,27 @@ class GFForms {
 				aria-labelledby="gform-form-switcher-label"
 				class="gform-dropdown__container"
 				role="listbox"
+				data-js="gform-dropdown-container"
 				tabindex="-1"
 			>
 				<div class="gform-dropdown__search">
-					<label for="gform-form-switcher-search" class="gform-visually-hidden"><?php esc_attr_e( 'Search forms', 'gravityforms' ) ?></label>
+					<label for="gform-form-switcher-search" class="gform-visually-hidden"><?php esc_attr_e( 'Search forms', 'gravityforms' ); ?></label>
 					<input
 						id="gform-form-switcher-search"
 						type="text" class="gform-input gform-dropdown__search-input"
-						placeholder="<?php esc_attr_e( 'Search for form', 'gravityforms' ) ?>"
+						placeholder="<?php esc_attr_e( 'Search for form', 'gravityforms' ); ?>"
 						data-js="gform-dropdown-search"
 					/>
 					<i class="gform-icon gform-icon--search gform-dropdown__search-icon"></i>
 				</div>
 				<div class="gform-dropdown__list-container" data-simplebar<?php echo is_rtl() ? ' data-simplebar-direction="rtl"' : ''; ?>>
-					<ul class="gform-dropdown__list">
+					<ul class="gform-dropdown__list" data-js="gform-dropdown-list">
 					<?php
 						foreach ( $all_forms as $form_info ) {
 							printf(
 								'
 									<li class="gform-dropdown__item">
-										<button class="gform-dropdown__trigger" data-js="gform-dropdown-trigger" data-value="%1$d" data-results-slug="%2$s" data-subviews="%3$s">
+										<button type="button" class="gform-dropdown__trigger" data-js="gform-dropdown-trigger" data-value="%1$d" data-results-slug="%2$s" data-subviews="%3$s">
 											<span class="gform-dropdown__trigger-text" data-value="%1$d">%4$s</span>
 										</button>
 									</li>
@@ -5251,6 +5269,28 @@ class GFForms {
 				}
 			}
 
+            function GF_SwitchFormTimeOut(id) {
+                if (id.length > 0) {
+                    const dropdownControl = document.getElementById('gform-form-switcher-control');
+                    const dropdownControlText = dropdownControl.querySelector('[data-js="gform-dropdown-control-text"]');
+                    const previousItemId = dropdownControl.getAttribute('data-value-previous');
+
+                    if (previousItemId) {
+                        const dropdownItemPrevious = document.querySelector('.gform-dropdown__trigger[data-value="' + previousItemId + '"] .gform-dropdown__trigger-text');
+                        dropdownControl.setAttribute('data-value', previousItemId);
+                        dropdownControlText.innerText = dropdownItemPrevious.innerText;
+                    }
+                }
+            }
+
+            function GF_SaveSelectedItem() {
+				const dropdownControl = document.getElementById('gform-form-switcher-control');
+				const currentItemId = dropdownControl.getAttribute('data-value');
+				if (currentItemId) {
+					dropdownControl.setAttribute('data-value-previous', currentItemId);
+				}
+            }
+
 			function ToggleFormSettings() {
 				FieldClick(jQuery('#gform_heading')[0]);
 			}
@@ -5258,6 +5298,8 @@ class GFForms {
 			gform.instances.formSwitcher = new gform.components.admin.html.elements.Dropdown( {
 				detectTitleLength: true,
 				onItemSelect: GF_SwitchForm,
+				onItemSelectTimedOut: GF_SwitchFormTimeOut,
+				onOpen: GF_SaveSelectedItem,
 				reveal: 'hover',
 				selector: 'gform-form-switcher',
 				showSpinner: true,
@@ -5271,7 +5313,6 @@ class GFForms {
 					event.preventDefault();
 				});
 			});
-
 
 		</script>
 		<?php
@@ -5476,7 +5517,7 @@ class GFForms {
 			<div class="gform-form-toolbar__container">
 
 				<div class="gform-form-toolbar__form-title">
-					<?php self::form_switcher( $form['title'] ); ?>
+					<?php self::form_switcher( $form['title'], $id ); ?>
 				</div>
 
 				<ul id="gform-form-toolbar__menu" class="gform-form-toolbar__menu">
@@ -7324,7 +7365,7 @@ if ( ! function_exists( 'rgexplode' ) ) {
 	 * @return array $ary The exploded array
 	 */
 	function rgexplode( $sep, $string, $count ) {
-		$ary = explode( $sep, $string );
+		$ary = explode( (string) $sep, (string) $string );
 		while ( count( $ary ) < $count ) {
 			$ary[] = '';
 		}

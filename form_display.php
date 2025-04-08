@@ -23,7 +23,6 @@ class GFFormDisplay {
 	const SUBMISSION_METHOD_POSTBACK = 'postback';
 	const SUBMISSION_METHOD_AJAX     = 'ajax';
 	const SUBMISSION_METHOD_IFRAME   = 'iframe';
-	const SUBMISSION_METHOD_CUSTOM   = 'custom';
 
 	/**
 	 * Starting point for the form submission process. Handles the following tasks: Form validation, save for later logic, entry creation, notification and confirmation.
@@ -1007,7 +1006,7 @@ class GFFormDisplay {
 		$form_args = apply_filters( 'gform_form_args', compact( 'form_id', 'display_title', 'display_description', 'force_display', 'field_values', 'ajax', 'tabindex' ) );
 
 		// The submission_method property can be set in the gform_form_args filter to specify how the form should be submitted.
-		// Supported values are: self::SUBMISSION_METHOD_AJAX (for true ajax submission), self::SUBMISSION_METHOD_POSTBACK (for standard form submission), self::SUBMISSION_METHOD_IFRAME (for the legacy iframe-based ajax submission ) or self::SUBMISSION_METHOD_CUSTOM (for submissions that will be triggered by third party code. i.e. Stripe Add-On).
+		// Supported values are: self::SUBMISSION_METHOD_AJAX (for true ajax submission), self::SUBMISSION_METHOD_POSTBACK (for standard form submission) or self::SUBMISSION_METHOD_IFRAME (for the legacy iframe-based ajax submission ).
 		// It is optional, but if set, will override the $ajax property.
 		if ( isset( $form_args['submission_method'] ) ) {
 			$form_args['ajax'] = $form_args['submission_method'] == self::SUBMISSION_METHOD_IFRAME;
@@ -1735,6 +1734,12 @@ class GFFormDisplay {
 		$input_type     = ( rgar( $button, 'type' ) === 'link' ) ? 'button' : 'submit';
 		$input_onclick  = $is_form_editor ? '' : "onclick='gform.submission.handleButtonClick(this);'";
 
+		$sub_type = rgar( explode( '_', $button_input_id ), 1, 'submit' );
+		if ( $sub_type === 'save' ) {
+			$sub_type .= '-continue';
+		}
+		$sub_type_attr = sprintf( "data-submission-type='%s'", esc_attr( $sub_type ) );
+
 		if ( ! empty( $target_page_number ) ) {
 			$input_type  = 'button';
 		}
@@ -1752,16 +1757,16 @@ class GFFormDisplay {
 					$target = '';
 					$icon   = '<svg aria-hidden="true" focusable="false" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M0 8a4 4 0 004 4h3v3a1 1 0 102 0v-3h3a4 4 0 100-8 4 4 0 10-8 0 4 4 0 00-4 4zm9 4H7V7.414L5.707 8.707a1 1 0 01-1.414-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L9 7.414V12z" fill="#6B7280"/></svg>';
 				}
-				$button_input = "<{$tag} type='{$input_type}' {$target} id='{$button_input_id}_link' {$input_onclick} class='{$class}' {$tabindex} >{$icon} {$button_text}</{$tag}>";
+				$button_input = "<{$tag} type='{$input_type}' {$target} id='{$button_input_id}_link' {$input_onclick} {$sub_type_attr} class='{$class}' {$tabindex} >{$icon} {$button_text}</{$tag}>";
 			} else {
 				$class .= GFFormDisplay::get_submit_button_class( $button, $form_id );
-				$button_input = "<input type='{$input_type}' id='{$button_input_id}' class='{$class}' {$input_onclick} value='" . esc_attr( $button_text ) . "' {$tabindex} />";
+				$button_input = "<input type='{$input_type}' id='{$button_input_id}' class='{$class}' {$input_onclick} {$sub_type_attr} value='" . esc_attr( $button_text ) . "' {$tabindex} />";
 			}
 		} else {
 			$imageUrl = esc_url( $button['imageUrl'] );
 			$class .= GFFormDisplay::get_submit_button_class( $button, $form_id );
 			$class .= ' gform_image_button';
-			$button_input = "<input type='image' src='{$imageUrl}' id='{$button_input_id}' {$input_onclick} class='{$class}' alt='{$alt}' {$tabindex} />";
+			$button_input = "<input type='image' src='{$imageUrl}' id='{$button_input_id}' {$input_onclick} {$sub_type_attr} class='{$class}' alt='{$alt}' {$tabindex} />";
 		}
 
 		return $button_input;
@@ -2851,12 +2856,13 @@ class GFFormDisplay {
 			if ( ! empty( $found_forms ) ) {
 				foreach ( $found_forms as $form_id => $attributes ) {
 					$form = GFAPI::get_form( $form_id );
-					$ajax  = $attributes['ajax'];
-					$form['theme'] = ! rgempty( 'theme', $attributes ) ? $attributes['theme'] : GFForms::get_default_theme();
-					unset( $attributes['theme'] ); // removing theme from styles for consistency. $form['theme'] should be used instead.
-					$form['styles'] = self::get_form_styles( $attributes );
 
 					if ( $form && $form['is_active'] && ! $form['is_trash'] ) {
+						$ajax          = $attributes['ajax'];
+						$form['theme'] = ! rgempty( 'theme', $attributes ) ? $attributes['theme'] : GFForms::get_default_theme();
+						unset( $attributes['theme'] ); // removing theme from styles for consistency. $form['theme'] should be used instead.
+						$form['styles'] = self::get_form_styles( $attributes );
+
 						self::enqueue_form_scripts( $form, $ajax, $form['theme'] );
 					}
 				}
@@ -4899,7 +4905,7 @@ class GFFormDisplay {
 								<input type='hidden' name='gform_resume_token' value='{$resume_token}' />
 								<input type='hidden' name='gform_send_resume_link' value='{$form_id}' />
 								{$form_submission_inputs}
-	                            <input type='submit' name='gform_send_resume_link_button' id='gform_send_resume_link_button_{$form_id}' onclick='gform.submission.handleButtonClick(this);' value='{$resume_submit_button_text}' {$ajax_submit}/>
+	                            <input type='submit' name='gform_send_resume_link_button' id='gform_send_resume_link_button_{$form_id}' onclick='gform.submission.handleButtonClick(this);' data-submission-type='send-link' value='{$resume_submit_button_text}' {$ajax_submit}/>
 	                            {$validation_output}
 	                            {$nonce_input}
 							</form>
@@ -4923,7 +4929,7 @@ class GFFormDisplay {
 								<input type='hidden' name='gform_resume_token' value='{$resume_token}' />
 								<input type='hidden' name='gform_send_resume_link' value='{$form_id}' />
 								{$form_submission_inputs}
-								<input type='submit' name='gform_send_resume_link_button' id='gform_send_resume_link_button_{$form_id}' onclick='gform.submission.handleButtonClick(this);' value='{$resume_submit_button_text}' {$ajax_submit}/>
+								<input type='submit' name='gform_send_resume_link_button' id='gform_send_resume_link_button_{$form_id}' onclick='gform.submission.handleButtonClick(this);' data-submission-type='send-link' value='{$resume_submit_button_text}' {$ajax_submit}/>
                                 {$nonce_input}
                             </div>
 						</form>
@@ -4946,9 +4952,10 @@ class GFFormDisplay {
 			$theme_slug      = self::get_form_theme_slug( $form );
 			$is_legacy       = $default_spinner !== $spinner_url || in_array( $theme_slug, array( 'gravity-theme', 'legacy' ) );
 
-			$resume_form .= '<script>gform.initializeOnLoaded( function() {' .
-			         "gformInitSpinner( {$form_id}, '{$spinner_url}', " . ( $is_legacy ? 'true' : 'false' ) . " );" .
-			         " });</script>";
+			$script = 'gform.initializeOnLoaded( function() {' .
+			          "gformInitSpinner( {$form_id}, '{$spinner_url}', " . ( $is_legacy ? 'true' : 'false' ) . " );" .
+			          " });";
+			$resume_form .= GFCommon::get_inline_script_tag( $script, false );
 		}
 
 		$text = str_replace( '{save_email_input}', $resume_form, $text );
@@ -5186,7 +5193,6 @@ class GFFormDisplay {
 			self::SUBMISSION_METHOD_POSTBACK,
 			self::SUBMISSION_METHOD_IFRAME,
 			self::SUBMISSION_METHOD_AJAX,
-			self::SUBMISSION_METHOD_CUSTOM,
 		) );
 	}
 
@@ -5642,7 +5648,8 @@ class GFFormDisplay {
 	 * @return array Returns the form object after being filtered by the gform_pre_render filter.
 	 */
 	public static function gform_pre_render( $form, $context, $ajax = null, $field_values = null ) {
-		$cache_key = $form['id'] . '_' . $context;
+		$form_id   = rgar( $form, 'id' );
+		$cache_key = $form_id . '_' . $context;
 
 		if ( ! isset( self::$cached_forms[ $cache_key ] ) ) {
 
@@ -5656,7 +5663,7 @@ class GFFormDisplay {
 			 * @param array|null $field_values  The field values to be used to populate the form. Only used when $context is 'form_display'.
 			 * @param string     $context       The context that the method is being called in. Possible values are 'form_display' and 'form_config'.
 			 */
-			self::$cached_forms[ $cache_key ] = gf_apply_filters( array( 'gform_pre_render', $form['id'] ), $form, $ajax, $field_values, $context );
+			self::$cached_forms[ $cache_key ] = gf_apply_filters( array( 'gform_pre_render', $form_id ), $form, $ajax, $field_values, $context );
 		}
 
 		return self::$cached_forms[ $cache_key ];
