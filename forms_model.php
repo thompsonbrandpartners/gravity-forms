@@ -720,27 +720,61 @@ class GFFormsModel {
 		}
 
 		$entry_table_name = self::get_entry_table_name();
-		$entry_detail_table_name = self::get_entry_meta_table_name();
 
-		$sql             = $wpdb->prepare(
-			"SELECT
-                    (SELECT count(DISTINCT(l.id)) FROM $entry_table_name l WHERE l.form_id=%d AND l.status='active') as total,
-                    (SELECT count(DISTINCT(l.id)) FROM $entry_table_name l WHERE l.is_read=0 AND l.status='active' AND l.form_id=%d) as unread,
-                    (SELECT count(DISTINCT(l.id)) FROM $entry_table_name l WHERE l.is_starred=1 AND l.status='active' AND l.form_id=%d) as starred,
-                    (SELECT count(DISTINCT(l.id)) FROM $entry_table_name l WHERE l.status='spam' AND l.form_id=%d) as spam,
-                    (SELECT count(DISTINCT(l.id)) FROM $entry_table_name l WHERE l.status='trash' AND l.form_id=%d) as trash",
-			$form_id, $form_id, $form_id, $form_id, $form_id
+		$queries = array(
+			"COUNT(DISTINCT CASE WHEN l.status='active' THEN l.id END) as total",
+			"COUNT(DISTINCT CASE WHEN l.is_read=0 AND l.status='active' THEN l.id END) as unread",
+			"COUNT(DISTINCT CASE WHEN l.is_starred=1 AND l.status='active' THEN l.id END) as starred",
+			"COUNT(DISTINCT CASE WHEN l.status='spam' THEN l.id END) as spam",
+			"COUNT(DISTINCT CASE WHEN l.status='trash' THEN l.id END) as trash",
 		);
 
+		/**
+		 * Allows the queries used to get the counts for the entries list filter links to be overridden.
+		 *
+		 * @since 2.9.16
+		 *
+		 * @param array $queries The filter count queries.
+		 * @param int   $form_id The ID of the form the queries are being prepared for.
+		 */
+		$filtered_queries = apply_filters( 'gform_entries_filter_count_queries', $queries, $form_id );
+
+		if ( empty( $filtered_queries ) || ! is_array( $filtered_queries ) ) {
+			return array();
+		}
+
+		if ( $filtered_queries !== $queries ) {
+			$filtered_queries = array_filter(
+				$filtered_queries,
+				function ( $query ) use ( $queries ) {
+					if ( in_array( $query, $queries, true ) ) {
+						return true;
+					}
+
+					$forbidden = '/\b(?:create|drop|alter|delete|truncate|insert|update|replace)\b|;|--|\/\*/i';
+					if ( preg_match( $forbidden, $query ) ) {
+						return false;
+					}
+
+					return true;
+				}
+			);
+
+			if ( empty( $filtered_queries ) ) {
+				$filtered_queries = $queries;
+			}
+		}
+
+		$queries = implode( ',', $filtered_queries );
+
 		$wpdb->timer_start();
-		$results = $wpdb->get_results( $sql, ARRAY_A );
-		$time_total = $wpdb->timer_stop();
-		if ( $time_total > 1 ) {
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$results = $wpdb->get_results( $wpdb->prepare( "SELECT $queries FROM %i l WHERE l.form_id=%d", $entry_table_name, $form_id ), ARRAY_A );
+		if ( $wpdb->timer_stop() > 1 ) {
 			GFCache::set( $cache_key, $results[0], true, 10 * MINUTE_IN_SECONDS );
 		}
 
 		return $results[0];
-
 	}
 
 	/**
@@ -3801,6 +3835,8 @@ class GFFormsModel {
 			} elseif ( $source_field instanceof GF_Field_MultiSelect && ! empty( $field_value ) && ! is_array( $field_value ) ) {
 				// Convert the comma-delimited string into an array.
 				$field_value = $source_field->to_array( $field_value );
+			} elseif ( $source_field instanceof GF_Field_Consent ) {
+				$field_value = rgar( $field_value, $rule['fieldId'] . '.1' );
 			} elseif ( $source_field->get_input_type() != 'checkbox' && is_array( $field_value ) && $source_field->id != $rule['fieldId'] && is_array( $source_field->get_entry_inputs() ) ) {
 				// Get the specific input value from the full field value.
 				$field_value = rgar( $field_value, $rule['fieldId'] );
@@ -5521,7 +5557,7 @@ class GFFormsModel {
 	public static function queue_save_input_value( $value, $form, $field, &$lead, $current_fields, $input_id, $item_index = '' ) {
 
 		$input_name = 'input_' . str_replace( '.', '_', $input_id );
-		if ( is_array( $value ) && ! ( $field->is_value_submission_array() && ! is_array( $value[0] ) ) ) {
+		if ( is_array( $value ) && ! ( $field->is_value_submission_array() && ! is_array( rgar( $value, 0 ) ) ) ) {
 			foreach ( $value as $i => $v ) {
 				$new_item_index = $item_index . '_' . $i;
 				if ( is_array( $v ) && ! ( $field->is_value_submission_array() && ! is_array( $v[0] ) ) ) {
@@ -6723,7 +6759,15 @@ class GFFormsModel {
 	}
 
 	public static function get_grid_columns( $form_id, $input_label_only = false ) {
-		$form      = self::get_form_meta( $form_id );
+		if ( empty( $form_id ) ) {
+			return array();
+		}
+
+		$form = self::get_form_meta( $form_id );
+		if ( empty( $form ) ) {
+			return array();
+		}
+
 		$field_ids = self::get_grid_column_meta( $form_id );
 
 		if ( ! is_array( $field_ids ) ) {
@@ -8197,15 +8241,12 @@ class GFFormsModel {
 	 * Update the recent forms list for the current user when a form is edited or trashed.
 	 *
 	 * @since 2.0.7.14
+	 * @since 2.9.12 Removed the dependency on the admin toolbar being enabled.
 	 *
 	 * @param int $form_id The ID of the current form.
 	 * @param bool $trashed Indicates if the form was trashed. Default is false, form was opened for editing.
 	 */
 	public static function update_recent_forms( $form_id, $trashed = false ) {
-		if ( ! get_option( 'gform_enable_toolbar_menu' ) ) {
-			return;
-		}
-
 		$current_user_id = get_current_user_id();
 		$recent_form_ids = self::get_recent_forms( $current_user_id );
 
