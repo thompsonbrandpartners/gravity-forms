@@ -1881,7 +1881,7 @@ class GFFormsModel {
 				WHERE entry_id IN (
 					SELECT id FROM $entry_table WHERE form_id=%d {$status_filter}
 				)", $form_id
-		); 
+		);
 		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		$wpdb->query( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
@@ -1897,7 +1897,7 @@ class GFFormsModel {
 		$wpdb->query( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
 		// Delete from entry
-		$sql = $wpdb->prepare( "DELETE FROM $entry_table WHERE form_id=%d {$status_filter}", $form_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, 
+		$sql = $wpdb->prepare( "DELETE FROM $entry_table WHERE form_id=%d {$status_filter}", $form_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,
 		$wpdb->query( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	}
 
@@ -3893,7 +3893,8 @@ class GFFormsModel {
 				// Convert the comma-delimited string into an array.
 				$field_value = $source_field->to_array( $field_value );
 			} elseif ( $source_field instanceof GF_Field_Consent ) {
-				$field_value = rgar( $field_value, $rule['fieldId'] . '.1' );
+				// Force $rule['fieldId'] to an int because a getCorrectDefaultFieldId() bug caused some rules based on the consent field to use the input ID instead of the field ID.
+				$field_value = rgar( $field_value, absint( $rule['fieldId'] ) . '.1' );
 			} elseif ( $source_field->get_input_type() != 'checkbox' && is_array( $field_value ) && $source_field->id != $rule['fieldId'] && is_array( $source_field->get_entry_inputs() ) ) {
 				// Get the specific input value from the full field value.
 				$field_value = rgar( $field_value, $rule['fieldId'] );
@@ -4842,10 +4843,13 @@ class GFFormsModel {
 	 * Retrieves the custom field names (meta keys) for the custom field select in the form editor.
 	 *
 	 * @since unknown
+	 * @since 2.9.10 Added the $limit parameter.
+	 *
+	 * @param string $limit Optional. Limits the number of custom field names returned. Default is empty (no limit).
 	 *
 	 * @return array
 	 */
-	public static function get_custom_field_names() {
+	public static function get_custom_field_names( $limit = '' ) {
 		$form_id = absint( rgget( 'id' ) );
 
 		/**
@@ -4867,6 +4871,9 @@ class GFFormsModel {
 			WHERE meta_key NOT BETWEEN '_' AND '_z'
 			HAVING meta_key NOT LIKE %s
 			ORDER BY meta_key";
+		if ( ! empty( $limit ) && is_numeric( $limit ) ) {
+			$sql .= $wpdb->prepare( " LIMIT %d", intval( $limit ) );
+		}
 		$keys = $wpdb->get_col( $wpdb->prepare( $sql, $wpdb->esc_like( '_' ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
 		return $keys;
@@ -5599,17 +5606,25 @@ class GFFormsModel {
 
 		//ignore file upload when nothing was sent in the admin
 		//ignore post fields in the admin
-		$type = self::get_input_type( $field );
+		$type     = self::get_input_type( $field );
+		$is_admin = GFCommon::is_entry_detail();
 
-		if ( rgget( 'view' ) === 'entry' && $type === 'fileupload' && $field->is_submission_files_empty() ) {
+		if ( $is_admin && $type === 'fileupload' && $field->is_submission_files_empty() ) {
 			return;
-		} elseif ( rgget( 'view' ) === 'entry' && in_array( $field->type, array( 'post_category', 'post_title', 'post_content', 'post_excerpt', 'post_tags', 'post_custom_field', 'post_image' ) ) ) {
+		} elseif ( $is_admin && in_array(
+			$field->type,
+			array(
+				'post_category',
+				'post_title',
+				'post_content',
+				'post_excerpt',
+				'post_tags',
+				'post_custom_field',
+				'post_image',
+			)
+		) ) {
 			return;
 		}
-
-		$is_form_editor = GFCommon::is_form_editor();
-		$is_entry_detail = GFCommon::is_entry_detail();
-		$is_admin = $is_form_editor || $is_entry_detail;
 
 		if ( empty( $value ) && $field->is_administrative() && ! $is_admin ) {
 			$value = self::get_default_value( $field, $input_id );
@@ -6278,7 +6293,7 @@ class GFFormsModel {
 		$notes_table = self::get_entry_notes_table_name();
 
 		return $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-			$wpdb->prepare( 
+			$wpdb->prepare(
 				"SELECT n.id, n.user_id, n.date_created, n.value, n.note_type, n.sub_type, ifnull(u.display_name,n.user_name) as user_name, u.user_email
 					FROM %i n
 					LEFT OUTER JOIN $wpdb->users u ON n.user_id = u.id

@@ -2308,7 +2308,7 @@ class GFAPI {
 	 *
 	 * @return false|array
 	 */
-	public static function maybe_process_feeds( $entry, $form, $addon_slug = '', $reset_meta = false ) {
+	public static function maybe_process_feeds( $entry, $form, $addon_slug = '', $reset_meta = false, $bypass_feed_delay = false ) {
 		if ( ! class_exists( 'GFFeedAddOn' ) || empty( $entry['id'] ) ) {
 			return false;
 		}
@@ -2325,6 +2325,7 @@ class GFAPI {
 				self::update_processed_feeds_meta( $entry['id'], $addon_slug, null );
 			}
 
+			$addon->set_bypass_feed_delay( $bypass_feed_delay );
 			$entry = $addon->maybe_process_feed( $entry, $form );
 		} else {
 			foreach ( $addons as $slug => $addon ) {
@@ -2336,6 +2337,7 @@ class GFAPI {
 					self::update_processed_feeds_meta( $entry['id'], $slug, null );
 				}
 
+				$addon->set_bypass_feed_delay( $bypass_feed_delay );
 				$entry = $addon->maybe_process_feed( $entry, $form );
 			}
 		}
