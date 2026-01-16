@@ -2419,7 +2419,7 @@ class GFCommon {
 
 		$message = self::format_email_message( $message, $message_format, $subject );
 
-		$name = empty( $from_name ) ? $from : $from_name;
+		$name = empty( $from_name ) ? '' : $from_name;
 
 		$headers         = array();
 		$headers['From'] = 'From: "' . wp_strip_all_tags( $name, true ) . '" <' . $from . '>';
@@ -4286,6 +4286,30 @@ Content-Type: text/html;
 		$currency = empty( $currency ) ? 'USD' : $currency;
 
 		return apply_filters( 'gform_currency', $currency );
+	}
+
+	/**
+	 * Verifies the posted currency value to ensure it wasn't tampered with.
+	 * Falls back to GFCommon::get_currency() if verification fails or posted currency is missing.
+	 *
+	 * @since next
+	 *
+	 * @return string The currency code.
+	 */
+	public static function get_submission_currency() {
+		$posted_currency = rgpost( 'gform_currency' );
+
+		if ( ! $posted_currency ) {
+			return self::get_currency();
+		}
+
+		$decrypted_currrency = GFCommon::openssl_decrypt( $posted_currency );
+
+		if ( $decrypted_currrency ) {
+			return $decrypted_currrency;
+		} else {
+			return self::get_currency();
+		}
 	}
 
 	public static function get_simple_captcha() {

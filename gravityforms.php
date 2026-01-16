@@ -3,7 +3,7 @@
 Plugin Name: Gravity Forms
 Plugin URI: https://gravityforms.com
 Description: Easily create web forms and manage form entries within the WordPress admin.
-Version: 2.9.23.3
+Version: 2.9.25.1
 Requires at least: 6.5
 Requires PHP: 7.4
 Author: Gravity Forms
@@ -257,7 +257,7 @@ class GFForms {
 	 *
 	 * @var string $version The version number.
 	 */
-	public static $version = '2.9.23.3';
+	public static $version = '2.9.25.1';
 
 	/**
 	 * Handles background upgrade tasks.
@@ -849,8 +849,9 @@ class GFForms {
 	 * @return array $plugins Supported plugins.
 	 */
 	public static function set_logging_supported( $plugins ) {
-		$plugins['gravityformsapi'] = 'Gravity Forms API';
-		$plugins['gravityforms']    = 'Gravity Forms Core';
+		$plugins['gravityformsapi']      = 'Gravity Forms API';
+		$plugins['gravityforms']         = 'Gravity Forms Core';
+		$plugins['gravityforms-browser'] = 'Gravity Forms Browser Session';
 
 		return $plugins;
 	}
@@ -5996,7 +5997,7 @@ class GFForms {
 
 		if ( is_null( $current_version ) ) {
 			if ( $slug === 'gravityforms' ) {
-				$current_version = GFCommon::$version;
+				$current_version = GFForms::$version;
 			} else {
 				// translators: %s: Add-on slug.
 				_doing_it_wrong( __METHOD__, sprintf( esc_html__( 'The $current_version parameter is required when checking for auto-updates for %s.', 'gravityforms' ), esc_html( $slug ) ), '2.9.24' );
@@ -7055,8 +7056,12 @@ class GFForms {
 	 * @return void
 	 */
 	public static function init_buffer() {
-		if( php_sapi_name() === 'cli' ) {
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			return;
+		}
+
+		if ( php_sapi_name() === 'cli' && ! isset( $_SERVER['REQUEST_METHOD'] ) ) {
+		  return;
 		}
 
 		require_once GFCommon::get_base_path() . '/includes/libraries/class-dom-parser.php';
