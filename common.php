@@ -199,7 +199,7 @@ class GFCommon {
 		//replacing commas with dots and dots with commas
 		if ( $number_format == 'currency' ) {
 			if ( empty( $currency ) ) {
-				$currency = GFCommon::get_currency();
+				$currency = GFCommon::get_submission_currency();
 			}
 
 			$currency = new RGCurrency( $currency );
@@ -4263,7 +4263,7 @@ Content-Type: text/html;
 
 	public static function to_money( $number, $currency_code = '' ) {
 		if ( empty( $currency_code ) ) {
-			$currency_code = self::get_currency();
+			$currency_code = self::get_submission_currency();
 		}
 
 		$currency = new RGCurrency( $currency_code );
@@ -4273,7 +4273,7 @@ Content-Type: text/html;
 
 	public static function to_number( $text, $currency_code = '' ) {
 		if ( empty( $currency_code ) ) {
-			$currency_code = self::get_currency();
+			$currency_code = self::get_submission_currency();
 		}
 
 		$currency = new RGCurrency( $currency_code );
@@ -4292,21 +4292,21 @@ Content-Type: text/html;
 	 * Verifies the posted currency value to ensure it wasn't tampered with.
 	 * Falls back to GFCommon::get_currency() if verification fails or posted currency is missing.
 	 *
-	 * @since next
+	 * @since 2.9.26
 	 *
 	 * @return string The currency code.
 	 */
 	public static function get_submission_currency() {
 		$posted_currency = rgpost( 'gform_currency' );
 
-		if ( ! $posted_currency ) {
+		if ( ! $posted_currency || ! is_string( $posted_currency ) ) {
 			return self::get_currency();
 		}
 
-		$decrypted_currrency = GFCommon::openssl_decrypt( $posted_currency );
+		$decrypted_currency = GFCommon::openssl_decrypt( $posted_currency );
 
-		if ( $decrypted_currrency ) {
-			return $decrypted_currrency;
+		if ( $decrypted_currency ) {
+			return $decrypted_currency;
 		} else {
 			return self::get_currency();
 		}
@@ -4559,7 +4559,7 @@ Content-Type: text/html;
 					$price += self::to_number( $option['price'] );
 				}
 			}
-			$quantity = self::to_number( $product['quantity'], GFCommon::get_currency() );
+			$quantity = self::to_number( $product['quantity'], GFCommon::get_submission_currency() );
 			if ( $quantity !== 0 ) {
 				$has_product = true;
 			}
@@ -5388,7 +5388,7 @@ Content-Type: text/html;
 		$result = false;
 
 		if ( preg_match( '/^[0-9 -\/*\(\)]+$/', $formula ) ) {
-			$prev_reporting_level = error_reporting( 0 );
+			$prev_reporting_level = error_reporting( 0 ); // phpcs:ignore QITStandard.PHP.DebugCode.ErrorReportingSuppressed
 			try {
 				$result = eval( "return {$formula};" );
 			} catch (DivisionByZeroError $e) {
@@ -5401,7 +5401,7 @@ Content-Type: text/html;
 				GFCommon::log_debug( __METHOD__ . sprintf( '(): Formula caused an exception: "%s".', $e->getMessage() ) );
 				$result = 0;
 			}
-			error_reporting( $prev_reporting_level );
+			error_reporting( $prev_reporting_level ); // phpcs:ignore QITStandard.PHP.DebugCode.ErrorReportingModified
 		}
 
 		$result = apply_filters( 'gform_calculation_result', $result, $formula, $field, $form, $lead );
@@ -7565,7 +7565,7 @@ Content-Type: text/html;
 		$email_domain = explode( '@', $email_address );
 
 		$domain_matches = ( strpos( $domain, array_pop( $email_domain ) ) !== false ) ? true : false;
-		GFCommon::log_debug( __METHOD__ . '(): Domain matches? '. var_export( $domain_matches, true ) );
+		GFCommon::log_debug( __METHOD__ . '(): Domain matches? '. var_export( $domain_matches, true ) ); // phpcs:ignore QITStandard.PHP.DebugCode.DebugFunctionFound
 
 		return $domain_matches;
   	}

@@ -311,7 +311,7 @@ abstract class GFFeedAddOn extends GFAddOn {
 	 * Deletes the feeds and clears queued background tasks on uninstall.
 	 *
 	 * @since unknown
-	 * @since next Updated to clear queued background tasks.
+	 * @since 2.9.25 Updated to clear queued background tasks.
 	 *
 	 * @return void
 	 */
@@ -753,7 +753,7 @@ abstract class GFFeedAddOn extends GFAddOn {
 	 *
 	 * If overriding in an add-on, call the parent method last to trigger the filter.
 	 *
-	 * @since next
+	 * @since 2.9.25
 	 *
 	 * @param bool     $retry Indicates if the feed can be retried following an error. Default is true.
 	 * @param WP_Error $error The error that occurred during feed processing.
@@ -768,7 +768,7 @@ abstract class GFFeedAddOn extends GFAddOn {
 		/**
 		 * Determines if the feed should remain in the queue for another attempt based on the error that occurred during processing.
 		 *
-		 * @since next
+		 * @since 2.9.25
 		 *
 		 * @param bool     $retry Indicates if the feed can be retried following an error. Default is true.
 		 * @param WP_Error $error The error that occurred during feed processing.
@@ -2593,7 +2593,7 @@ abstract class GFFeedAddOn extends GFAddOn {
 	public function add_feed_error( $error_message, $feed, $entry, $form ) {
 
 		/* Log debug error before we prepend the error name. */
-		$backtrace = debug_backtrace();
+		$backtrace = debug_backtrace(); // phpcs:ignore QITStandard.PHP.DebugCode.DebugFunctionFound
 		$method    = $backtrace[1]['class'] . '::' . $backtrace[1]['function'];
 		$this->log_error( $method . '(): ' . $error_message );
 

@@ -1953,7 +1953,7 @@ class GFFormDisplay {
 		$lead_id = gf_apply_filters( array( 'gform_entry_id_pre_save_lead', $form_id ), null, $form );
 
 		if ( ! empty( $lead_id ) ) {
-			GFCommon::log_debug( __METHOD__ . '(): The gform_entry_id_pre_save_lead filter was used to set the entry ID to ' . var_export( $lead_id, true ) );
+			GFCommon::log_debug( __METHOD__ . '(): The gform_entry_id_pre_save_lead filter was used to set the entry ID to ' . var_export( $lead_id, true ) ); // phpcs:ignore QITStandard.PHP.DebugCode.DebugFunctionFound
 
 			if ( empty( $lead ) ) {
 				$lead = array();
@@ -2069,7 +2069,7 @@ class GFFormDisplay {
 	/**
 	 * Logs browser session data if available.
 	 *
-	 * @since next
+	 * @since 2.9.26
 	 *
 	 * @param int $form_id The form id
 	 * @param int $entry_id The entry id
@@ -3950,6 +3950,21 @@ class GFFormDisplay {
 			$mask   = $field->inputMaskValue;
 			$script = "jQuery('#input_{$form['id']}_{$field->id}').mask('" . esc_js( $mask ) . "').bind('keypress', function(e){if(e.which == 13){jQuery(this).blur();} } );";
 
+			/**
+			 * Filters the input mask initialization script for a field.
+			 *
+			 * @since unknown
+			 * @deprecated next
+			 * @remove-in 3.0
+			 *
+			 * @param string $script   The mask initialization script.
+			 * @param int    $form_id  The form ID.
+			 * @param int    $field_id The field ID.
+			 * @param string $mask     The input mask value.
+			 */
+			if ( gf_has_filter( array( 'gform_input_mask_script', $form['id'] ) ) ) {
+				trigger_error( 'gform_input_mask_script is deprecated and will be removed in version 3.0.', E_USER_DEPRECATED ); // phpcs:ignore QITStandard.PHP.DebugCode.DebugFunctionFound
+			}
 			$script_str .= gf_apply_filters( array( 'gform_input_mask_script', $form['id'] ), $script, $form['id'], $field->id, $mask );
 		}
 

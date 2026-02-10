@@ -554,7 +554,7 @@ class GFLogging extends GFAddOn {
 		 * Fires before a logging message is recorded regardless of whether logging is enabled. Useful for sending
 		 * logs to other systems outside the file system.
 		 *
-		 * @since next
+		 * @since 2.9.26
 		 *
 		 * @param string $plugin       Plugin name.
 		 * @param string $message      The logging message.
@@ -605,7 +605,7 @@ class GFLogging extends GFAddOn {
 	/**
 	 * Determines if logging is enabled for a plugin.
 	 *
-	 * @since next
+	 * @since 2.9.26
 	 *
 	 * @param string $plugin The plugin slug.
 	 *
@@ -795,7 +795,7 @@ class GFLogging extends GFAddOn {
     /**
      * Register config for client side logger
      *
-     * @since next
+     * @since 2.9.26
      */
 	protected static function register_config() {
         require_once 'config/class-gf-logging-config.php';
