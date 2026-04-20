@@ -1761,7 +1761,7 @@ class GFCommon {
 
 					$field->set_modifiers( $options_array );
 					$raw_field_value = RGFormsModel::get_lead_field_value( $lead, $field );
-					$field_value     = GFCommon::get_lead_field_display( $field, $raw_field_value, $lead, $use_text, $format, 'email' );
+					$field_value     = $field->get_value_all_fields_merge_tag( $raw_field_value, $lead, $use_text, $format );
 
 					$display_field = true;
 					//depending on parameters, don't display adminOnly or hidden fields
@@ -1976,7 +1976,7 @@ class GFCommon {
 		} else {
 			$field     = RGFormsModel::get_field( $form, rgget( 'fromNameField', $form['notification'] ) );
 			$value     = RGFormsModel::get_lead_field_value( $lead, $field );
-			$from_name = GFCommon::get_lead_field_display( $field, $value );
+			$from_name = $field->get_value_entry_detail( $value, $lead, false, 'html', 'screen' );
 		}
 
 		$replyTo = rgempty( 'replyToField', $form['notification'] ) ? rgget( 'replyTo', $form['notification'] ) : rgget( $form['notification']['replyToField'], $lead );
@@ -2052,8 +2052,10 @@ class GFCommon {
 	}
 
 	public static function send_notification( $notification, $form, $lead, $data = array() ) {
+		$entry_id  = absint( rgar( $lead, 'id' ) );
+		$for_entry = $entry_id ? ' for entry #' . $entry_id : '';
 
-		GFCommon::log_debug( "GFCommon::send_notification(): Starting to process notification (#{$notification['id']} - {$notification['name']})." );
+		GFCommon::log_debug( __METHOD__ . sprintf( '(): Starting to process notification (#%s - %s)%s.', rgar( $notification, 'id', 'custom' ), rgar( $notification, 'name', 'custom' ), $for_entry ) );
 
 		$notification = gf_apply_filters( array( 'gform_notification', $form['id'] ), $notification, $form, $lead );
 
@@ -3795,7 +3797,7 @@ Content-Type: text/html;
 		foreach ( $fields as $field ) {
 
 			$value = GFFormsModel::get_lead_field_value( $entry, $field );
-			$value = GFCommon::get_lead_field_display( $field, $value, $entry );
+			$value = $field->get_value_entry_detail( $value, $entry, false, 'html', 'screen' );
 
 			if ( rgblank( $value ) ) {
 				continue;
@@ -4391,6 +4393,8 @@ Content-Type: text/html;
 	/**
 	 * Returns the value to be displayed on the entry detail page and for the {all_fields} merge tag.
 	 *
+	 * Post category values are prepared inside `GF_Field::get_value_entry_detail()` for relevant field subclasses.
+	 *
 	 * @since unknown
 	 * @since 2.9.29 Changed the third parameter $currency (string) to $entry (array).
 	 *
@@ -4404,13 +4408,8 @@ Content-Type: text/html;
 	 * @return string|false
 	 */
 	public static function get_lead_field_display( $field, $value, $entry = array(), $use_text = false, $format = 'html', $media = 'screen' ) {
-
 		if ( ! $field instanceof GF_Field ) {
 			$field = GF_Fields::create( $field );
-		}
-
-		if ( $field->type === 'post_category' ) {
-			$value = self::prepare_post_category_value( $value, $field );
 		}
 
 		if ( ! is_array( $entry ) ) {
@@ -4480,7 +4479,7 @@ Content-Type: text/html;
 								$name  = $field_label;
 								$price = $lead_value;
 							} else {
-								list( $name, $price ) = explode( '|', $lead_value );
+								list( $name, $price ) = rgexplode( '|', $lead_value, 2, true );
 
 								if ( $use_choice_text ) {
 									$name = RGFormsModel::get_choice_text( $field, $name );
@@ -4552,7 +4551,7 @@ Content-Type: text/html;
 				$shipping_name     = $use_admin_label && ! empty( $shipping_fields[0]->adminLabel ) ? $shipping_fields[0]->adminLabel : $shipping_fields[0]->label;
 				$shipping_field_id = $shipping_fields[0]->id;
 				if ( $shipping_fields[0]->inputType != 'singleshipping' && ! empty( $shipping_price ) ) {
-					list( $shipping_method, $shipping_price ) = explode( '|', $shipping_price );
+					list( $shipping_method, $shipping_price ) = rgexplode( '|', $shipping_price, 2, true );
 					if ( $use_choice_text ) {
 						$shipping_method = RGFormsModel::get_choice_text( $shipping_fields[0], $shipping_method );
 					}
@@ -4631,7 +4630,7 @@ Content-Type: text/html;
 			return array();
 		}
 
-		list( $name, $price ) = explode( '|', $value );
+		list( $name, $price ) = rgexplode( '|', $value, 2, true );
 		if ( $use_choice_text ) {
 			$name = RGFormsModel::get_choice_text( $option, $name );
 		}
@@ -4924,8 +4923,8 @@ Content-Type: text/html;
 
 		$value = RGFormsModel::get_lead_field_value( $lead, $fields[0] );
 		switch ( $field_type ) {
-			case 'name' :
-				$value = GFCommon::get_lead_field_display( $fields[0], $value );
+			case 'name':
+				$value = $fields[0]->get_value_entry_detail( $value, $lead, false, 'html', 'screen' );
 				break;
 		}
 
@@ -7112,23 +7111,28 @@ Content-Type: text/html;
 	/**
 	 * Checks for the existence of a MySQL table.
 	 *
-	 * @since  2.2
-	 * @access public
+	 * @since 2.2
+	 * @since 2.9.30 Added static caching and $bypass_cache param.
 	 *
-	 * @param string $table_name Table to check for.
-	 *
-	 * @uses wpdb::get_var()
+	 * @param string $table_name   Table to check for.
+	 * @param bool   $bypass_cache Whether to bypass the statically cached results of previous checks.
 	 *
 	 * @return bool
 	 */
-	public static function table_exists( $table_name ) {
+	public static function table_exists( $table_name, $bypass_cache = false ) {
+		$found  = false;
+		$result = ! $bypass_cache && (bool) GFCache::get( 'table_exists_' . $table_name, $found, false );
 
-		global $wpdb;
+		if ( ! $found ) {
+			global $wpdb;
 
-		$count = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table_name ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$count = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
-		return ! empty( $count );
+			$result = ! empty( $count );
+			GFCache::set( 'table_exists_' . $table_name, $result );
+		}
 
+		return $result;
 	}
 
 	/**
@@ -7662,6 +7666,7 @@ Content-Type: text/html;
 		if ( ! rgblank( $icon_namespace ) ) {
 			return sprintf( '<i class="'. $icon_namespace .'-icon %s"%s></i>', esc_attr( $icon ), $aria_hidden_attr );
 		} else if ( strpos( $icon, '<svg' ) !== false ) {
+			$icon = str_contains( $icon, 'aria-hidden' ) ? $icon : str_replace( '<svg', "<svg$aria_hidden_attr", $icon );
 			return $icon;
 		} else if ( filter_var( $icon, FILTER_VALIDATE_URL ) ) {
 			return sprintf( '<img src="%s"%s />', esc_attr( $icon ), $aria_hidden_attr );
@@ -8347,6 +8352,10 @@ Content-Type: text/html;
 	 * @return void
 	 */
 	public static function send_json( $response ) {
+		if ( ! headers_sent() ) {
+			header( 'Content-Type: application/json; charset=' . get_option( 'blog_charset' ) );
+		}
+
 		// Outputting JSON content with delimiters.
 		echo '<!-- gf:json_start -->' . wp_json_encode( $response ) . '<!-- gf:json_end -->';
 
@@ -8765,4 +8774,5 @@ class GF_Late_Static_Binding {
 	public function GFFormDisplay_footer_init_scripts() {
 		return GFFormDisplay::footer_init_scripts( $this->args['form_id'] );
 	}
+
 }
