@@ -433,7 +433,7 @@ class GF_Forms_Model_Legacy {
 		}
 
 		$status_filter = empty( $status ) ? '' : $wpdb->prepare( 'AND status=%s', $status );
-		$results       = $wpdb->get_results( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}rg_lead WHERE form_id=%d {$status_filter}", $form_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery 
+		$results       = $wpdb->get_results( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}rg_lead WHERE form_id=%d {$status_filter}", $form_id ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.DirectQuery
 
 		foreach ( $results as $result ) {
 			GFFormsModel::delete_files( $result['id'], $form );
@@ -479,6 +479,11 @@ class GF_Forms_Model_Legacy {
 		$ary = explode( '|:|', $file_url );
 		$url = rgar( $ary, 0 );
 		if ( empty( $url ) ) {
+			return;
+		}
+
+		if ( str_contains( $file_url, '..' ) ) {
+			GFCommon::log_debug( __METHOD__ . sprintf( '(): Not deleting file; path traversal characters found in file path: %s', $file_url ) );
 			return;
 		}
 
@@ -771,8 +776,8 @@ class GF_Forms_Model_Legacy {
 		global $wpdb;
 		$notes_table = self::get_lead_notes_table_name();
 
-		
-		return $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, 
+
+		return $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching,
 			$wpdb->prepare(
 				"  SELECT n.id, n.user_id, n.date_created, n.value, n.note_type, ifnull(u.display_name,n.user_name) as user_name, u.user_email
                                                     FROM %i n

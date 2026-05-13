@@ -321,10 +321,17 @@ class GF_Field_FileUpload extends GF_Field {
 					return $this->get_invalid_file_result( $file, $check_result->get_error_message(), $name_key );
 				}
 			}
-		} elseif ( isset( $file['url'] ) && ( ! GFCommon::is_valid_url( $file['url'] ) || empty( $file_name ) || ! str_contains( $file['url'], $file_name ) || empty( $file['hash'] ) || $this->get_populated_file_url_hash( $file ) !== $file['hash'] ) ) {
-			$message = $this->errorMessage ?: esc_html__( 'The file URL is not valid.', 'gravityforms' );
+		} elseif ( isset( $file['url'] ) ) {
+			if ( ! GFCommon::is_valid_url( $file['url'] ) || empty( $file_name ) || ! str_contains( $file['url'], $file_name ) || empty( $file['hash'] ) || $this->get_populated_file_url_hash( $file ) !== $file['hash'] ) {
+				$message = $this->errorMessage ?: esc_html__( 'The file URL is not valid.', 'gravityforms' );
 
-			return $this->get_invalid_file_result( $file, $message, 'url' );
+				return $this->get_invalid_file_result( $file, $message, 'url' );
+			} elseif ( str_contains( rgar( $file, 'url' ), '..' ) ) {
+				GFCommon::log_debug( __METHOD__ . '(): The file path contains directory traversal characters.' );
+				$message = $this->errorMessage ?: esc_html__( 'This URL is not permitted.', 'gravityforms' );
+
+				return $this->get_invalid_file_result( $file, $message, 'url' );
+			}
 		}
 
 		$allowed_extensions = $this->get_clean_allowed_extensions();

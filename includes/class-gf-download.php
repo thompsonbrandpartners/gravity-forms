@@ -28,6 +28,11 @@ class GF_Download {
 
 			GFCommon::log_debug( __METHOD__ . "(): Starting file download process. file: {$file}, hash: {$hash}." );
 
+			if ( str_contains( $file, '..' ) ) {
+				GFCommon::log_debug( __METHOD__ . sprintf( '(): Not downloading file; path traversal characters found in file path: %s', $file ) );
+				self::die_401();
+			}
+
 			$permission_granted = self::validate_download( $form_id, $field_id, $file, $hash, $entry_id );
 
 			if ( has_filter( 'gform_permission_granted_pre_download' ) ) {
